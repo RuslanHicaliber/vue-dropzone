@@ -68,7 +68,7 @@ export default {
           }
         }
       };
-      request.addEventListener('progress', progressHandler);
+      request.upload.addEventListener('progress', progressHandler);
       request.open('POST', response.postEndpoint);
       request.onload = function () {
         if (request.status == 201) {
