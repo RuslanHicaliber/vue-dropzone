@@ -14,7 +14,8 @@ export default {
         if (request.status == 200) {
           resolve(JSON.parse(request.response));
         } else {
-          reject((request.statusText));
+          const response = JSON.parse(request.response);
+          reject(response && response.message ? {'message': response.message} : request.statusText);
         }
       };
       request.onerror = function (err) {
@@ -63,7 +64,8 @@ export default {
           var successMsg = s3Error.firstChild.children[0].innerHTML;
           resolve({
             'success': true,
-            'message': successMsg
+            'message': successMsg,
+            'path': s3Error.querySelector('Key').innerHTML,
           })
         } else {
           var s3Error = (new window.DOMParser()).parseFromString(request.response, "text/xml");
@@ -81,6 +83,17 @@ export default {
           'success': false,
           'message': errMsg
         })
+      };
+      request.upload.onprogress = function(event) {
+        const progress = (100 * event.loaded) / event.total;
+        if (file.previewElement) {
+          for (let node of file.previewElement.querySelectorAll("[data-dz-uploadprogress]")) {
+            node.nodeName === 'PROGRESS' ?
+              (node.value = progress)
+              :
+              (node.style.width = `${progress}%`)
+          }
+        }
       };
       request.send(fd);
     });

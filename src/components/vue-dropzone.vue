@@ -53,7 +53,8 @@ export default {
     return {
       isS3: false,
       isS3OverridesServerPropagation: false,
-      wasQueueAutoProcess: true
+      dontSendRequestToServer: false,
+      wasQueueAutoProcess: true,
     };
   },
   computed: {
@@ -70,6 +71,7 @@ export default {
         this.isS3 = true; //eslint-disable-line
         this.isS3OverridesServerPropagation =
           this.awss3.sendFileToServer === false; //eslint-disable-line
+        this.dontSendRequestToServer = this.awss3.sendRequestToServer === false;
         if (this.options.autoProcessQueue !== undefined)
           this.wasQueueAutoProcess = this.options.autoProcessQueue; //eslint-disable-line
 
@@ -399,8 +401,11 @@ export default {
         promise.then(response => {
           if (response.success) {
             file.s3ObjectLocation = response.message;
-            setTimeout(() => this.dropzone.processFile(file));
-            this.$emit("vdropzone-s3-upload-success", response.message);
+            file.path = response.path;
+            if (!this.dontSendRequestToServer) {
+              setTimeout(() => this.dropzone.processFile(file));
+            }
+            this.$emit("vdropzone-s3-upload-success", response.message, file);
           } else {
             if ("undefined" !== typeof response.message) {
               this.$emit("vdropzone-s3-upload-error", response.message);
@@ -410,6 +415,7 @@ export default {
                 "Network Error : Could not send request to AWS. (Maybe CORS error)"
               );
             }
+            this.removeFile(file); //we need to remove file because it stuck with infinite loading
           }
         });
       } else {
