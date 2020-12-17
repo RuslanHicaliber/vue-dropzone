@@ -57,6 +57,18 @@ export default {
     fd.append('file', file);
     return new Promise((resolve, reject) => {
       let request = new XMLHttpRequest();
+      const progressHandler = function(event) {
+        const progress = (100 * event.loaded) / event.total;
+        if (file.previewElement) {
+          for (let node of file.previewElement.querySelectorAll("[data-dz-uploadprogress]")) {
+            node.nodeName === 'PROGRESS' ?
+              (node.value = progress)
+              :
+              (node.style.width = `${progress}%`)
+          }
+        }
+      };
+      request.addEventListener('progress', progressHandler);
       request.open('POST', response.postEndpoint);
       request.onload = function () {
         if (request.status == 201) {
@@ -83,17 +95,6 @@ export default {
           'success': false,
           'message': errMsg
         })
-      };
-      request.upload.onprogress = function(event) {
-        const progress = (100 * event.loaded) / event.total;
-        if (file.previewElement) {
-          for (let node of file.previewElement.querySelectorAll("[data-dz-uploadprogress]")) {
-            node.nodeName === 'PROGRESS' ?
-              (node.value = progress)
-              :
-              (node.style.width = `${progress}%`)
-          }
-        }
       };
       request.send(fd);
     });
