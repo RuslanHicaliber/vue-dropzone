@@ -47,7 +47,12 @@ export default {
       type: Boolean,
       default: false,
       required: false
-    }
+    },
+    compressImageOptions: {
+      type: Object,
+      required: false,
+      default: null
+    },
   },
   data() {
     return {
@@ -100,7 +105,7 @@ export default {
       vm.$emit("vdropzone-thumbnail", file, dataUrl);
     });
 
-    this.dropzone.on("addedfile", function(file) {
+    this.dropzone.on("addedfile", async function(file) {
       var isDuplicate = false;
       if (vm.duplicateCheck) {
         if (this.files.length) {
@@ -123,7 +128,9 @@ export default {
           }
         }
       }
-
+      if (vm.compressImageOptions && file.type.match(/image.*/)) {
+        file = await vm.compressImage(file);
+      }
       vm.$emit("vdropzone-file-added", file);
       if (vm.isS3 && vm.wasQueueAutoProcess && !file.manuallyAdded) {
         vm.getSignedAndUploadToS3(file);
@@ -273,6 +280,87 @@ export default {
     if (this.destroyDropzone) this.dropzone.destroy();
   },
   methods: {
+    compressImage: async function (file) {
+      const img = document.createElement('img');
+
+      // create img element from File object
+      img.src = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.readAsDataURL(file);
+      });
+      await new Promise((resolve) => {
+        img.onload = resolve;
+      });
+
+      return this.resizeImage(img, file);
+    },
+    resizeImage: function (img, file) {
+      var MAX_WIDTH = this.compressImageOptions.width;
+      var MAX_HEIGHT = this.compressImageOptions.height;
+
+      var width = img.width;
+      var height = img.height;
+
+      // Don't resize if it's small enough
+      if ((width <= MAX_WIDTH && height <= MAX_HEIGHT)) {
+        return file;
+      } else {
+        // Calc new dims otherwise
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        // Resize
+        var canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        var ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+
+        var resizedFile = this.base64ToFile(canvas.toDataURL('image/jpeg', this.compressImageOptions.quality), file);
+
+        if (resizedFile.size !== 0) {
+          return resizedFile;
+        } else {
+          return file;
+        }
+      }
+    },
+    base64ToFile: function (dataURI, origFile) {
+      var byteString, mimestring;
+      if (dataURI.split(',')[0].indexOf('base64') !== -1) {
+        byteString = atob(dataURI.split(',')[1]);
+      } else {
+        byteString = decodeURI(dataURI.split(',')[1]);
+      }
+      mimestring = dataURI.split(',')[0].split(':')[1].split(';')[0];
+      var content = new Array();
+      for (var i = 0; i < byteString.length; i++) {
+        content[i] = byteString.charCodeAt(i);
+      }
+      var newFile = new File(
+        [new Uint8Array(content)], origFile.name, {type: mimestring}
+      );
+      // Copy props set by the dropzone in the original file
+      var origProps = [
+        "upload", "status", "previewElement", "previewTemplate", "accepted"
+      ];
+      _.each(origProps, (item) => {
+        newFile[item] = origFile[item];
+      });
+      newFile.upload.total = newFile.size;
+      return newFile;
+    },
     manuallyAddFile: function(file, fileUrl) {
       file.manuallyAdded = true;
       this.dropzone.emit("addedfile", file);
