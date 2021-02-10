@@ -307,16 +307,14 @@ export default {
         return file;
       } else {
         // Calc new dims otherwise
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
-          }
+        var widthMultiplier = MAX_WIDTH / width;
+        var heightMultiplier = MAX_HEIGHT / height;
+        if (widthMultiplier < heightMultiplier) {
+          height *= widthMultiplier;
+          width = MAX_WIDTH;
         } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
-          }
+          width *= heightMultiplier;
+          height = MAX_HEIGHT;
         }
 
         // Resize
@@ -330,6 +328,8 @@ export default {
         var resizedFile = this.base64ToFile(canvas.toDataURL('image/jpeg', this.compressImageOptions.quality), file);
 
         if (resizedFile.size !== 0) {
+          var origFileIndex = this.dropzone.files.indexOf(file);
+          this.dropzone.files[origFileIndex] = resizedFile;
           return resizedFile;
         } else {
           return file;
